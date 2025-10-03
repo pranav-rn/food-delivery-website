@@ -11,7 +11,7 @@ CREATE TABLE Users (
     last_name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    phone_num VARCHAR(20),
+    phone_num INT(10),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE
 );
@@ -104,9 +104,9 @@ CREATE TABLE Order_Items (
 
 -- Insert into Users
 INSERT INTO Users (first_name, last_name, email, password_hash, phone_num, is_active) VALUES
-('Alice', 'Johnson', 'alice@example.com', 'hash123', '9876543210', TRUE),
-('Bob', 'Smith', 'bob@example.com', 'hash456', '9876543211', TRUE),
-('Charlie', 'Brown', 'charlie@example.com', 'hash789', '9876543212', FALSE);
+('Alice', 'Johnson', 'alice@example.com', 'hash123', 9876543210, TRUE),
+('Bob', 'Smith', 'bob@example.com', 'hash456', 9876543211, TRUE),
+('Charlie', 'Brown', 'charlie@example.com', 'hash789', 9876543212, FALSE);
 
 -- Insert into Addresses
 INSERT INTO Addresses (user_id, address, city, state, postal_code, is_default) VALUES
