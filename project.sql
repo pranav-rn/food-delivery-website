@@ -85,7 +85,7 @@ CREATE TABLE Menu_Items (
     name VARCHAR(150) NOT NULL,
     description TEXT,
     price DECIMAL(10,2) NOT NULL,
-    image_url VARCHAR(255),
+    image LONGBLOB,
     is_available BOOLEAN DEFAULT TRUE,
     FOREIGN KEY (restaurant_id) REFERENCES Restaurants(restaurant_id)
 );
@@ -139,10 +139,10 @@ INSERT INTO Payments (order_id, payment_method, amount, status) VALUES
 (3, 'Cash', 1200.75, 'Completed');
 
 -- Insert into Menu_Items
-INSERT INTO Menu_Items (restaurant_id, name, description, price, image_url, is_available) VALUES
-(1, 'Paneer Tikka', 'Grilled paneer with spices', 250.00, 'url1.jpg', TRUE),
-(2, 'Spaghetti Carbonara', 'Classic Italian pasta', 350.00, 'url2.jpg', TRUE),
-(3, 'Salmon Sushi', 'Fresh salmon with rice', 400.00, 'url3.jpg', FALSE);
+INSERT INTO Menu_Items (restaurant_id, name, description, price, image, is_available) VALUES
+(1, 'Paneer Tikka', 'Grilled paneer with spices', 250.00, LOAD_FILE('/path/to/url1.jpg'), TRUE),
+(2, 'Spaghetti Carbonara', 'Classic Italian pasta', 350.00, LOAD_FILE('/path/to/url2.jpg'), TRUE),
+(3, 'Salmon Sushi', 'Fresh salmon with rice', 400.00, LOAD_FILE('/path/to/url3.jpg'), FALSE);
 
 -- Insert into Order_Items
 INSERT INTO Order_Items (order_id, item_id, quantity, price_per_item) VALUES
