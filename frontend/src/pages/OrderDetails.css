@@ -1,0 +1,197 @@
+.order-details-page {
+  padding: 40px 0;
+  min-height: calc(100vh - 70px);
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: #ff6b35;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: opacity 0.3s ease;
+}
+
+.back-btn:hover {
+  opacity: 0.8;
+}
+
+.order-details-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.order-details-header {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: white;
+  padding: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-details-header h1 {
+  font-size: 2rem;
+  margin-bottom: 5px;
+}
+
+.order-date {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+}
+
+.status-badge {
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: white;
+  color: #333;
+}
+
+.status-pending { background: #ff9800; color: white; }
+.status-confirmed { background: #2196f3; color: white; }
+.status-preparing { background: #9c27b0; color: white; }
+.status-assigned { background: #00bcd4; color: white; }
+.status-picked_up { background: #03a9f4; color: white; }
+.status-on_the_way { background: #4caf50; color: white; }
+.status-delivered { background: #8bc34a; color: white; }
+.status-cancelled { background: #f44336; color: white; }
+
+.details-section {
+  padding: 30px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.details-section:last-child {
+  border-bottom: none;
+}
+
+.details-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.details-section p {
+  margin-bottom: 8px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.order-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.order-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.item-description {
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.item-price-details {
+  text-align: right;
+}
+
+.item-price-details p {
+  margin-bottom: 5px;
+}
+
+.payment-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+}
+
+.summary-row.total {
+  border-top: 2px solid #e0e0e0;
+  padding-top: 15px;
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.rating-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+
+.star-rating {
+  display: flex;
+  gap: 10px;
+}
+
+.star {
+  background: none;
+  border: none;
+  font-size: 2.5rem;
+  cursor: pointer;
+  opacity: 0.3;
+  transition: opacity 0.3s ease, transform 0.2s ease;
+}
+
+.star.active {
+  opacity: 1;
+}
+
+.star:hover {
+  transform: scale(1.1);
+}
+
+.rating-display {
+  font-size: 2rem;
+  color: #ff6b35;
+}
+
+.order-actions {
+  padding: 30px;
+  background: #f9f9f9;
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .order-details-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .order-item {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .item-price-details {
+    text-align: left;
+  }
+
+  .order-actions {
+    flex-direction: column;
+  }
+}
