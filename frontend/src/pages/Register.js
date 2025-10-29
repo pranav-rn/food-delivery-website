@@ -1,3 +1,10 @@
+/**
+ * Registration Page Component
+ * Handles user registration with role selection
+ * Supports three user types: customer, driver, restaurant_owner
+ * Shows conditional fields based on selected user type
+ */
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,20 +17,48 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    phoneNum: ''
+    phoneNum: '',
+    userType: 'customer', // Default user type
+    // Driver-specific fields
+    vehicleType: '',
+    licenseNumber: '',
+    // Restaurant owner-specific fields
+    restaurantId: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { register, isAuthenticated } = useAuth();
+  const { register, isAuthenticated, userType } = useAuth();
   const navigate = useNavigate();
 
+  // Redirect if already authenticated
   React.useEffect(() => {
     if (isAuthenticated) {
-      navigate('/restaurants');
+      redirectToDashboard(userType);
     }
   }, [isAuthenticated, navigate]);
 
+  /**
+   * Redirect to appropriate dashboard based on user role
+   */
+  const redirectToDashboard = (userType) => {
+    switch(userType) {
+      case 'restaurant_owner':
+        navigate('/restaurant-owner-dashboard');
+        break;
+      case 'driver':
+        navigate('/driver-dashboard');
+        break;
+      case 'customer':
+      default:
+        navigate('/restaurants');
+        break;
+    }
+  };
+
+  /**
+   * Handle form input changes
+   */
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -31,6 +66,10 @@ const Register = () => {
     });
   };
 
+  /**
+   * Handle registration form submission
+   * Validates input and sends registration data with role-specific fields
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -45,18 +84,41 @@ const Register = () => {
       return;
     }
 
+    // Validate role-specific fields
+    if (formData.userType === 'driver' && (!formData.vehicleType || !formData.licenseNumber)) {
+      setError('Vehicle type and license number are required for drivers');
+      return;
+    }
+
+    if (formData.userType === 'restaurant_owner' && !formData.restaurantId) {
+      setError('Restaurant ID is required for restaurant owners');
+      return;
+    }
+
     setLoading(true);
 
-    const result = await register({
+    // Build registration data based on user type
+    const registrationData = {
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
       password: formData.password,
-      phoneNum: formData.phoneNum
-    });
+      phoneNum: formData.phoneNum,
+      userType: formData.userType
+    };
+
+    // Add role-specific fields
+    if (formData.userType === 'driver') {
+      registrationData.vehicleType = formData.vehicleType;
+      registrationData.licenseNumber = formData.licenseNumber;
+    } else if (formData.userType === 'restaurant_owner') {
+      registrationData.restaurantId = formData.restaurantId;
+    }
+
+    const result = await register(registrationData);
 
     if (result.success) {
-      navigate('/restaurants');
+      redirectToDashboard(result.user.userType);
     } else {
       setError(result.error);
     }
@@ -123,6 +185,74 @@ const Register = () => {
               placeholder="10-digit phone number"
             />
           </div>
+
+          {/* User Type Selection */}
+          <div className="form-group">
+            <label htmlFor="userType">I am registering as</label>
+            <select
+              id="userType"
+              name="userType"
+              value={formData.userType}
+              onChange={handleChange}
+              required
+              className="form-select"
+            >
+              <option value="customer">Customer</option>
+              <option value="driver">Driver</option>
+              <option value="restaurant_owner">Restaurant Owner</option>
+            </select>
+          </div>
+
+          {/* Conditional Fields for Driver */}
+          {formData.userType === 'driver' && (
+            <>
+              <div className="form-group">
+                <label htmlFor="vehicleType">Vehicle Type</label>
+                <select
+                  id="vehicleType"
+                  name="vehicleType"
+                  value={formData.vehicleType}
+                  onChange={handleChange}
+                  required
+                  className="form-select"
+                >
+                  <option value="">Select vehicle type</option>
+                  <option value="Motorcycle">Motorcycle</option>
+                  <option value="Car">Car</option>
+                  <option value="Bicycle">Bicycle</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="licenseNumber">License Number</label>
+                <input
+                  type="text"
+                  id="licenseNumber"
+                  name="licenseNumber"
+                  value={formData.licenseNumber}
+                  onChange={handleChange}
+                  required
+                  placeholder="Enter your license number"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Conditional Fields for Restaurant Owner */}
+          {formData.userType === 'restaurant_owner' && (
+            <div className="form-group">
+              <label htmlFor="restaurantId">Restaurant ID</label>
+              <input
+                type="number"
+                id="restaurantId"
+                name="restaurantId"
+                value={formData.restaurantId}
+                onChange={handleChange}
+                required
+                placeholder="Enter your restaurant ID"
+              />
+              <small className="form-text">Contact admin if you don't have a restaurant ID</small>
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="password">Password</label>

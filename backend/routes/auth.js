@@ -1,3 +1,9 @@
+/**
+ * Authentication Routes
+ * Handles user registration and login for different user types
+ * Supports: customer, driver, restaurant_owner
+ */
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -5,12 +11,17 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/db');
 
-// Register new user
+/**
+ * Register new user
+ * POST /api/auth/register
+ * Body: { firstName, lastName, email, password, phoneNum, userType, restaurantId?, driverId? }
+ */
 router.post('/register', [
   body('email').isEmail(),
   body('password').isLength({ min: 6 }),
   body('firstName').notEmpty(),
-  body('lastName').notEmpty()
+  body('lastName').notEmpty(),
+  body('userType').isIn(['customer', 'driver', 'restaurant_owner']).optional()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -18,10 +29,11 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { firstName, lastName, email, password, phoneNum } = req.body;
+    const { firstName, lastName, email, password, phoneNum, userType, restaurantId, driverId } = req.body;
+    const finalUserType = userType || 'customer';
 
     // Check if user exists
-    const [existingUser] = await db.query('SELECT * FROM Users WHERE email = ?', [email]);
+    const [existingUser] = await db.admin.query('SELECT * FROM Users WHERE email = ?', [email]);
     if (existingUser.length > 0) {
       return res.status(400).json({ error: 'User already exists' });
     }
@@ -31,14 +43,32 @@ router.post('/register', [
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Insert user
-    const [result] = await db.query(
-      'INSERT INTO Users (first_name, last_name, email, password_hash, phone_num) VALUES (?, ?, ?, ?, ?)',
-      [firstName, lastName, email, passwordHash, phoneNum]
+    const [result] = await db.admin.query(
+      'INSERT INTO Users (first_name, last_name, email, password_hash, phone_num, user_type) VALUES (?, ?, ?, ?, ?, ?)',
+      [firstName, lastName, email, passwordHash, phoneNum, finalUserType]
     );
 
-    // Create token
+    const userId = result.insertId;
+
+    // Link to restaurant owner if applicable
+    if (finalUserType === 'restaurant_owner' && restaurantId) {
+      await db.admin.query(
+        'INSERT INTO Restaurant_Owners (user_id, restaurant_id) VALUES (?, ?)',
+        [userId, restaurantId]
+      );
+    }
+
+    // Link to driver if applicable
+    if (finalUserType === 'driver' && driverId) {
+      await db.admin.query(
+        'UPDATE Drivers SET user_id = ? WHERE driver_id = ?',
+        [userId, driverId]
+      );
+    }
+
+    // Create token with user type
     const token = jwt.sign(
-      { userId: result.insertId, email },
+      { userId, email, userType: finalUserType },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -47,10 +77,11 @@ router.post('/register', [
       message: 'User registered successfully',
       token,
       user: {
-        id: result.insertId,
+        id: userId,
         firstName,
         lastName,
-        email
+        email,
+        userType: finalUserType
       }
     });
   } catch (error) {
@@ -59,7 +90,12 @@ router.post('/register', [
   }
 });
 
-// Login user
+/**
+ * User login
+ * POST /api/auth/login
+ * Body: { email, password }
+ * Returns: JWT token with user type and user information
+ */
 router.post('/login', [
   body('email').isEmail(),
   body('password').notEmpty()
@@ -72,8 +108,8 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // Get user
-    const [users] = await db.query('SELECT * FROM Users WHERE email = ?', [email]);
+    // Get user with admin connection
+    const [users] = await db.admin.query('SELECT * FROM Users WHERE email = ?', [email]);
     if (users.length === 0) {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
@@ -91,9 +127,9 @@ router.post('/login', [
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    // Create token
+    // Create token with user type
     const token = jwt.sign(
-      { userId: user.user_id, email: user.email },
+      { userId: user.user_id, email: user.email, userType: user.user_type || 'customer' },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -106,7 +142,8 @@ router.post('/login', [
         firstName: user.first_name,
         lastName: user.last_name,
         email: user.email,
-        phoneNum: user.phone_num
+        phoneNum: user.phone_num,
+        userType: user.user_type || 'customer'
       }
     });
   } catch (error) {

@@ -1,3 +1,9 @@
+/**
+ * Main Server Configuration
+ * Express server with role-based authentication and multiple user types
+ * Supports: customers, drivers, restaurant owners
+ */
+
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -17,6 +23,8 @@ const orderRoutes = require('./routes/orders');
 const userRoutes = require('./routes/users');
 const driverRoutes = require('./routes/drivers');
 const paymentRoutes = require('./routes/payments');
+const restaurantOwnerRoutes = require('./routes/restaurant-owner');
+const driverOrderRoutes = require('./routes/driver-orders');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/restaurants', restaurantRoutes);
@@ -24,6 +32,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/restaurant-owner', restaurantOwnerRoutes);
+app.use('/api/driver-orders', driverOrderRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

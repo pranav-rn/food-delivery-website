@@ -1,6 +1,12 @@
+/**
+ * Order Details Page with Live Delivery Tracking
+ * Shows order information and interactive map with delivery route
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { orderAPI } from '../services/api';
+import DeliveryMap from '../components/DeliveryMap';
 import './OrderDetails.css';
 
 const OrderDetails = () => {
@@ -10,9 +16,14 @@ const OrderDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rating, setRating] = useState(0);
+  const [showMap, setShowMap] = useState(true);
 
   useEffect(() => {
     fetchOrderDetails();
+    
+    // Refresh order details every 30 seconds for live tracking
+    const interval = setInterval(fetchOrderDetails, 30000);
+    return () => clearInterval(interval);
   }, [id]);
 
   const fetchOrderDetails = async () => {
@@ -112,6 +123,38 @@ const OrderDetails = () => {
             </section>
           )}
 
+          {/* Live Delivery Tracking Map */}
+          {['confirmed', 'preparing', 'out_for_delivery'].includes(order.order_status.toLowerCase()) && (
+            <section className="details-section">
+              <h2>🗺️ Live Delivery Tracking</h2>
+              <p className="map-info">Track your order in real-time</p>
+              <DeliveryMap
+                restaurant={{
+                  latitude: order.restaurant_latitude || 28.6139,
+                  longitude: order.restaurant_longitude || 77.2090,
+                  name: order.restaurant_name
+                }}
+                customer={{
+                  latitude: order.customer_latitude || 28.7041,
+                  longitude: order.customer_longitude || 77.1025,
+                  address: order.delivery_address
+                }}
+                driver={order.driver_first_name ? {
+                  id: order.driver_id,
+                  first_name: order.driver_first_name,
+                  last_name: order.driver_last_name,
+                  current_latitude: order.driver_latitude || order.restaurant_latitude || 28.6139,
+                  current_longitude: order.driver_longitude || order.restaurant_longitude || 77.2090,
+                  phone_number: order.driver_phone,
+                  vehicle_number: order.driver_plate
+                } : null}
+                showRoute={order.order_status.toLowerCase() === 'out_for_delivery'}
+                animateDriver={order.order_status.toLowerCase() === 'out_for_delivery'}
+                height="500px"
+              />
+            </section>
+          )}
+
           <section className="details-section">
             <h2>Order Items</h2>
             <div className="order-items-list">
@@ -138,10 +181,38 @@ const OrderDetails = () => {
                 <span>Subtotal</span>
                 <span>₹{order.total_amount}</span>
               </div>
-              <div className="summary-row total">
-                <span>Total Paid</span>
-                <span>₹{order.total_amount}</span>
-              </div>
+              {order.payment && (
+                <>
+                  <div className="summary-row">
+                    <span>Delivery Fee</span>
+                    <span>₹{(2.99).toFixed(2)}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span>Tax (5%)</span>
+                    <span>₹{(order.total_amount * 0.05).toFixed(2)}</span>
+                  </div>
+                  <div className="summary-row total">
+                    <span>Total Paid</span>
+                    <span>₹{parseFloat(order.payment.amount).toFixed(2)}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span>Payment Method</span>
+                    <span>{order.payment.payment_method}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span>Payment Status</span>
+                    <span style={{ color: order.payment.status === 'completed' ? '#4caf50' : '#ff9800', fontWeight: 'bold', textTransform: 'capitalize' }}>
+                      {order.payment.status}
+                    </span>
+                  </div>
+                </>
+              )}
+              {!order.payment && (
+                <div className="summary-row total">
+                  <span>Total Paid</span>
+                  <span>₹{order.total_amount}</span>
+                </div>
+              )}
             </div>
           </section>
 

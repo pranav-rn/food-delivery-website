@@ -1,3 +1,12 @@
+/**
+ * Login Page Component
+ * Handles user authentication and role-based routing
+ * Redirects to appropriate dashboard based on userType:
+ * - customer → /restaurants
+ * - driver → /driver-dashboard
+ * - restaurant_owner → /restaurant-owner-dashboard
+ */
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,15 +18,39 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, userType } = useAuth();
   const navigate = useNavigate();
 
+  // Redirect if already authenticated
   React.useEffect(() => {
     if (isAuthenticated) {
-      navigate('/restaurants');
+      redirectToDashboard(userType);
     }
   }, [isAuthenticated, navigate]);
 
+  /**
+   * Redirect user to appropriate dashboard based on role
+   * @param {string} userType - User role (customer/driver/restaurant_owner)
+   */
+  const redirectToDashboard = (userType) => {
+    switch(userType) {
+      case 'restaurant_owner':
+        navigate('/restaurant-owner-dashboard');
+        break;
+      case 'driver':
+        navigate('/driver-dashboard');
+        break;
+      case 'customer':
+      default:
+        navigate('/restaurants');
+        break;
+    }
+  };
+
+  /**
+   * Handle login form submission
+   * Validates credentials and redirects based on user role
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -26,7 +59,8 @@ const Login = () => {
     const result = await login(email, password);
     
     if (result.success) {
-      navigate('/restaurants');
+      // Role-based redirect after successful login
+      redirectToDashboard(result.user.userType);
     } else {
       setError(result.error);
     }

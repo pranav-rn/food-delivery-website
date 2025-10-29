@@ -1,21 +1,33 @@
+/**
+ * Order Routes
+ * Handles order placement, tracking, and history
+ * Uses stored procedures and role-based database access
+ */
+
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const authMiddleware = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 
-// Place new order (uses stored procedure)
+/**
+ * Place new order
+ * POST /api/orders
+ * Body: { restaurantId, addressId, items: [{itemId, quantity, price}] }
+ * Uses stored procedure: place_order
+ */
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { restaurantId, addressId, items } = req.body;
     const userId = req.user.userId;
+    const connection = db.getConnectionByUserType(req.user.userType || 'customer');
 
     // Call stored procedure to place order
-    const [result] = await db.query(
+    const [result] = await connection.query(
       'CALL place_order(?, ?, ?, ?, @order_id)',
       [userId, restaurantId, addressId, JSON.stringify(items)]
     );
 
-    const [orderId] = await db.query('SELECT @order_id as order_id');
+    const [orderId] = await connection.query('SELECT @order_id as order_id');
 
     res.status(201).json({
       message: 'Order placed successfully',
@@ -27,13 +39,19 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// Get user's order history (uses stored procedure)
+/**
+ * Get user's order history
+ * GET /api/orders/history
+ * Query params: limit (default: 20)
+ * Uses stored procedure: get_user_order_history
+ */
 router.get('/history', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
     const limit = parseInt(req.query.limit) || 20;
+    const connection = db.getConnectionByUserType(req.user.userType || 'customer');
 
-    const [orders] = await db.query(
+    const [orders] = await connection.query(
       'CALL get_user_order_history(?, ?)',
       [userId, limit]
     );
@@ -87,9 +105,18 @@ router.get('/:id', authMiddleware, async (req, res) => {
       [req.params.id]
     );
 
+    // Get payment information
+    const [payments] = await db.query(
+      `SELECT amount, payment_method, status, payment_date
+       FROM Payments
+       WHERE order_id = ?`,
+      [req.params.id]
+    );
+
     const order = {
       ...orders[0],
-      items
+      items,
+      payment: payments.length > 0 ? payments[0] : null
     };
 
     res.json(order);

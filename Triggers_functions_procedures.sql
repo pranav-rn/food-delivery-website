@@ -12,17 +12,20 @@ DELIMITER ;
 
 DELIMITER //
 CREATE TRIGGER update_restaurant_rating
-AFTER INSERT ON orders
+AFTER UPDATE ON orders
 FOR EACH ROW
 BEGIN
-    UPDATE restaurants
-    SET rating = (
-        SELECT AVG(o.rating)
-        FROM orders o
-        WHERE o.restaurant_id = NEW.restaurant_id
-        AND o.rating IS NOT NULL
-    )
-    WHERE restaurant_id = NEW.restaurant_id;
+    -- Only update rating if a rating was just added
+    IF NEW.rating IS NOT NULL AND OLD.rating IS NULL THEN
+        UPDATE restaurants
+        SET rating = (
+            SELECT AVG(o.rating)
+            FROM orders o
+            WHERE o.restaurant_id = NEW.restaurant_id
+            AND o.rating IS NOT NULL
+        )
+        WHERE restaurant_id = NEW.restaurant_id;
+    END IF;
 END//
 DELIMITER ;
 
@@ -55,9 +58,10 @@ BEGIN
     FROM orders
     WHERE order_id = NEW.order_id;
     
-    IF NEW.amount != order_total THEN
+    -- Allow payment to be equal or greater than order total (to account for fees and tax)
+    IF NEW.amount < order_total THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Payment amount must match order total';
+        SET MESSAGE_TEXT = 'Payment amount cannot be less than order total';
     END IF;
 END//
 DELIMITER ;
@@ -155,16 +159,28 @@ BEGIN
     
     START TRANSACTION;
     
-    -- Create order
-    INSERT INTO orders (user_id, restaurant_id, address_id, order_status, order_date)
-    VALUES (p_user_id, p_restaurant_id, p_address_id, 'pending', NOW());
-    
-    SET p_order_id = LAST_INSERT_ID();
-    
     -- Get items count
     SET v_items_count = JSON_LENGTH(p_items);
     
-    -- Insert order items and calculate total
+    -- Calculate total first
+    WHILE v_idx < v_items_count DO
+        SET v_item_id = JSON_UNQUOTE(JSON_EXTRACT(p_items, CONCAT('$[', v_idx, '].item_id')));
+        SET v_quantity = JSON_UNQUOTE(JSON_EXTRACT(p_items, CONCAT('$[', v_idx, '].quantity')));
+        
+        SELECT price INTO v_price FROM menu_items WHERE item_id = v_item_id;
+        
+        SET v_total = v_total + (v_price * v_quantity);
+        SET v_idx = v_idx + 1;
+    END WHILE;
+    
+    -- Create order with total amount
+    INSERT INTO orders (user_id, restaurant_id, address_id, total_amount, order_status, order_date)
+    VALUES (p_user_id, p_restaurant_id, p_address_id, v_total, 'pending', NOW());
+    
+    SET p_order_id = LAST_INSERT_ID();
+    
+    -- Reset counter and insert order items
+    SET v_idx = 0;
     WHILE v_idx < v_items_count DO
         SET v_item_id = JSON_UNQUOTE(JSON_EXTRACT(p_items, CONCAT('$[', v_idx, '].item_id')));
         SET v_quantity = JSON_UNQUOTE(JSON_EXTRACT(p_items, CONCAT('$[', v_idx, '].quantity')));
@@ -174,12 +190,8 @@ BEGIN
         INSERT INTO order_items (order_id, item_id, quantity, price_per_item)
         VALUES (p_order_id, v_item_id, v_quantity, v_price);
         
-        SET v_total = v_total + (v_price * v_quantity);
         SET v_idx = v_idx + 1;
     END WHILE;
-    
-    -- Update order total
-    UPDATE orders SET total_amount = v_total WHERE order_id = p_order_id;
     
     COMMIT;
 END//

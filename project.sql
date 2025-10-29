@@ -61,6 +61,7 @@ CREATE TABLE Orders (
     total_amount DECIMAL(10,2) NOT NULL,
     order_status VARCHAR(50) DEFAULT 'Pending',
     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    rating INT DEFAULT NULL CHECK (rating >= 1 AND rating <= 5),
     FOREIGN KEY (user_id) REFERENCES Users(user_id),
     FOREIGN KEY (restaurant_id) REFERENCES Restaurants(restaurant_id),
     FOREIGN KEY (driver_id) REFERENCES Drivers(driver_id),
