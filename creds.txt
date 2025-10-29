@@ -1,0 +1,6 @@
+As Customer (john.doe@example.com):
+pw-customer_pass123
+As Driver (raj.kumar@driver.com):
+pw-driver_pass123
+As Restaurant Owner (mario@pizzaparadise.com):
+pw-owner_pass123 

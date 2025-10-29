@@ -86,6 +86,41 @@
   line-height: 1.6;
 }
 
+/* Driver info section styling */
+.driver-info-section {
+  background: linear-gradient(to right, #f0fdf4, #dcfce7);
+  border-left: 4px solid #10b981;
+}
+
+.driver-details {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.driver-details p {
+  margin: 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.info-message {
+  background: #fef3c7;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  border-left: 4px solid #f59e0b;
+}
+
+.info-message p {
+  margin: 0;
+  color: #92400e;
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
 .order-items-list {
   display: flex;
   flex-direction: column;

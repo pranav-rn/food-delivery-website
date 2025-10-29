@@ -22,9 +22,10 @@ const RestaurantOwnerDashboard = () => {
   // State management
   const [restaurant, setRestaurant] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'analytics'
+  const [activeTab, setActiveTab] = useState('orders'); // 'menu', 'orders', or 'analytics'
   
   // Form state for add/edit
   const [showForm, setShowForm] = useState(false);
@@ -51,7 +52,15 @@ const RestaurantOwnerDashboard = () => {
   useEffect(() => {
     fetchRestaurantData();
     fetchMenuItems();
+    fetchOrders(); // Always fetch orders on mount
   }, []);
+
+  // Fetch orders when switching to orders tab
+  useEffect(() => {
+    if (activeTab === 'orders') {
+      fetchOrders();
+    }
+  }, [activeTab]);
 
   /**
    * Fetch restaurant information for the logged-in owner
@@ -65,6 +74,10 @@ const RestaurantOwnerDashboard = () => {
       });
       setRestaurant(response.data);
     } catch (error) {
+      if (error.response?.status === 404) {
+        // No restaurant found - owner needs to create one
+        setRestaurant(null);
+      }
       console.error('Error fetching restaurant:', error);
     }
   };
@@ -84,6 +97,50 @@ const RestaurantOwnerDashboard = () => {
     } catch (error) {
       console.error('Error fetching menu:', error);
       setLoading(false);
+    }
+  };
+
+  /**
+   * Fetch orders for the restaurant
+   */
+  const fetchOrders = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Fetching orders for restaurant owner...');
+      const response = await axios.get(`${API_URL}/restaurant-owner/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log('Orders fetched:', response.data);
+      setOrders(response.data);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      console.error('Error details:', error.response?.data);
+      alert('Failed to load orders: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  /**
+   * Mark order as prepared
+   * Changes status from 'confirmed' to 'preparing'
+   */
+  const markOrderPrepared = async (orderId) => {
+    if (!window.confirm('Mark this order as prepared and ready for pickup?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `${API_URL}/restaurant-owner/orders/${orderId}/prepare`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      alert('Order marked as prepared! Driver can now pick it up.');
+      fetchOrders(); // Refresh orders list
+    } catch (error) {
+      console.error('Error marking order prepared:', error);
+      alert(error.response?.data?.error || 'Failed to mark order as prepared');
     }
   };
 
@@ -285,7 +342,7 @@ const RestaurantOwnerDashboard = () => {
           <div className="restaurant-info">
             <h2>{restaurant.restaurant_name}</h2>
             <p>{restaurant.address} | {restaurant.phone_num}</p>
-            <p>Cuisine: {restaurant.cuisine_type} | Rating: {restaurant.rating || 'N/A'} ⭐</p>
+            <p>Cuisine: {restaurant.cuisine} | Rating: {restaurant.rating || 'N/A'} ⭐</p>
           </div>
         )}
       </div>
@@ -293,16 +350,22 @@ const RestaurantOwnerDashboard = () => {
       {/* Tab Navigation */}
       <div className="dashboard-tabs">
         <button 
+          className={activeTab === 'orders' ? 'tab-active' : ''}
+          onClick={() => setActiveTab('orders')}
+        >
+          📋 Orders Received
+        </button>
+        <button 
           className={activeTab === 'menu' ? 'tab-active' : ''}
           onClick={() => setActiveTab('menu')}
         >
-          Menu Management
+          🍽️ Manage Menu
         </button>
         <button 
           className={activeTab === 'analytics' ? 'tab-active' : ''}
           onClick={showAnalytics}
         >
-          Sales Analytics
+          📊 Sales Analytics
         </button>
       </div>
 
@@ -473,6 +536,112 @@ const RestaurantOwnerDashboard = () => {
         </div>
       )}
 
+      {/* Orders Received Tab */}
+      {activeTab === 'orders' && (
+        <div className="tab-content">
+          <div className="section-header">
+            <div>
+              <h3>📋 Orders Received</h3>
+              <p className="tab-description">Manage incoming orders from customers</p>
+            </div>
+            <button className="btn btn-secondary" onClick={fetchOrders}>
+              🔄 Refresh Orders
+            </button>
+          </div>
+          {orders.length === 0 ? (
+            <div className="empty-state">
+              <p>No orders received yet. Orders will appear here when customers place orders from your restaurant.</p>
+              <button className="btn btn-primary" onClick={fetchOrders}>
+                🔄 Check for New Orders
+              </button>
+            </div>
+          ) : (
+            <div className="orders-list">
+              {orders.map(order => (
+                <div key={order.order_id} className="order-card">
+                  <div className="order-header">
+                    <div>
+                      <h4>Order #{order.order_id}</h4>
+                      <span className={`status-badge status-${order.order_status}`}>
+                        {order.order_status.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="order-amount">₹{order.total_amount}</div>
+                  </div>
+                  
+                  <div className="order-details">
+                    <div className="order-section">
+                      <strong>Customer:</strong>
+                      <p>{order.customer_first_name} {order.customer_last_name}</p>
+                      <p>📞 {order.customer_phone}</p>
+                      {order.customer_email && <p>📧 {order.customer_email}</p>}
+                      <p>📍 {order.delivery_address}, {order.delivery_city}</p>
+                    </div>
+                    
+                    {order.driver_first_name ? (
+                      <div className="order-section driver-section">
+                        <strong>🚗 Assigned Driver:</strong>
+                        <p><strong>{order.driver_first_name} {order.driver_last_name}</strong></p>
+                        <p>📞 {order.driver_phone}</p>
+                        {order.driver_email && <p>📧 {order.driver_email}</p>}
+                        <p>🚗 Vehicle: {order.driver_plate}</p>
+                      </div>
+                    ) : (
+                      <div className="order-section">
+                        <strong>Driver:</strong>
+                        <p className="text-muted">⏳ Finding driver...</p>
+                      </div>
+                    )}
+                    
+                    <div className="order-section">
+                      <strong>Items Ordered:</strong>
+                      <ul>
+                        {order.items.map((item, idx) => (
+                          <li key={idx}>
+                            {item.item_name} x {item.quantity} - ₹{item.price}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    <div className="order-section">
+                      <strong>Payment:</strong>
+                      <p>{order.payment_method} - {order.payment_status}</p>
+                    </div>
+                    
+                    <div className="order-section">
+                      <strong>Order Date:</strong>
+                      <p>{new Date(order.order_date).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {/* Action button based on order status */}
+                  <div className="order-actions">
+                    {(order.order_status === 'confirmed' || order.order_status === 'pending') && (
+                      <button
+                        className="btn btn-success btn-lg"
+                        onClick={() => markOrderPrepared(order.order_id)}
+                      >
+                        ✓ Mark as Ready for Pickup
+                      </button>
+                    )}
+                    {order.order_status === 'preparing' && (
+                      <span className="status-info status-success">✓ Order Ready - Waiting for driver pickup</span>
+                    )}
+                    {order.order_status === 'out_for_delivery' && (
+                      <span className="status-info">🚚 Out for delivery</span>
+                    )}
+                    {order.order_status === 'delivered' && (
+                      <span className="status-info">✓ Delivered</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Analytics Tab - Demonstrates Aggregate Queries */}
       {activeTab === 'analytics' && (
         <div className="tab-content">
@@ -490,15 +659,15 @@ const RestaurantOwnerDashboard = () => {
                 </div>
                 <div className="stat-card">
                   <h4>Total Revenue</h4>
-                  <p className="stat-value">₹{analytics.stats.total_revenue?.toFixed(2) || '0.00'}</p>
+                  <p className="stat-value">₹{analytics.stats.total_revenue ? parseFloat(analytics.stats.total_revenue).toFixed(2) : '0.00'}</p>
                 </div>
                 <div className="stat-card">
                   <h4>Avg Order Value</h4>
-                  <p className="stat-value">₹{analytics.stats.avg_order_value?.toFixed(2) || '0.00'}</p>
+                  <p className="stat-value">₹{analytics.stats.avg_order_value ? parseFloat(analytics.stats.avg_order_value).toFixed(2) : '0.00'}</p>
                 </div>
                 <div className="stat-card">
                   <h4>Avg Rating</h4>
-                  <p className="stat-value">{analytics.stats.avg_rating?.toFixed(1) || 'N/A'} ⭐</p>
+                  <p className="stat-value">{analytics.stats.avg_rating ? parseFloat(analytics.stats.avg_rating).toFixed(1) : 'N/A'} ⭐</p>
                 </div>
               </div>
 
@@ -519,8 +688,8 @@ const RestaurantOwnerDashboard = () => {
                       <tr key={day.date}>
                         <td>{new Date(day.date).toLocaleDateString()}</td>
                         <td>{day.total_orders}</td>
-                        <td>₹{parseFloat(day.total_revenue).toFixed(2)}</td>
-                        <td>₹{parseFloat(day.avg_order_value).toFixed(2)}</td>
+                        <td>₹{day.total_revenue ? parseFloat(day.total_revenue).toFixed(2) : '0.00'}</td>
+                        <td>₹{day.avg_order_value ? parseFloat(day.avg_order_value).toFixed(2) : '0.00'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -545,7 +714,7 @@ const RestaurantOwnerDashboard = () => {
                         <td>{item.item_name}</td>
                         <td>{item.times_ordered}</td>
                         <td>{item.total_quantity}</td>
-                        <td>₹{parseFloat(item.total_revenue).toFixed(2)}</td>
+                        <td>₹{item.total_revenue ? parseFloat(item.total_revenue).toFixed(2) : '0.00'}</td>
                       </tr>
                     ))}
                   </tbody>

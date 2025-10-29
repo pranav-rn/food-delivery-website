@@ -27,6 +27,49 @@ const upload = multer({
 });
 
 /**
+ * Create a new restaurant for the owner
+ * POST /api/restaurant-owner/create-restaurant
+ */
+router.post('/create-restaurant', authMiddleware, requireRole('restaurant_owner'), async (req, res) => {
+  try {
+    const connection = db.admin; // Use admin for INSERT operations
+    const { name, description, address, phoneNum, cuisine, latitude, longitude } = req.body;
+    
+    // Check if this user already owns a restaurant
+    const [existing] = await connection.query(
+      'SELECT * FROM Restaurant_Owners WHERE user_id = ?',
+      [req.user.userId]
+    );
+    
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'You already own a restaurant' });
+    }
+    
+    // Create the restaurant
+    const [result] = await connection.query(
+      'INSERT INTO Restaurants (name, description, address, phone_num, cuisine, latitude, longitude, rating, is_open) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, TRUE)',
+      [name, description, address, phoneNum, cuisine, latitude || null, longitude || null]
+    );
+    
+    const restaurantId = result.insertId;
+    
+    // Link the restaurant to the owner
+    await connection.query(
+      'INSERT INTO Restaurant_Owners (user_id, restaurant_id) VALUES (?, ?)',
+      [req.user.userId, restaurantId]
+    );
+    
+    res.status(201).json({ 
+      message: 'Restaurant created successfully',
+      restaurantId 
+    });
+  } catch (error) {
+    console.error('Create restaurant error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
  * Get restaurant owned by current user
  * GET /api/restaurant-owner/my-restaurant
  */
@@ -77,11 +120,9 @@ router.get('/menu', authMiddleware, requireRole('restaurant_owner'), async (req,
     const [menuItems] = await connection.query(`
       SELECT 
         item_id,
-        item_name,
+        name as item_name,
         description,
         price,
-        category,
-        is_vegetarian,
         is_available,
         CASE 
           WHEN image IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(image))
@@ -89,7 +130,7 @@ router.get('/menu', authMiddleware, requireRole('restaurant_owner'), async (req,
         END as image
       FROM Menu_Items
       WHERE restaurant_id = ?
-      ORDER BY category, item_name
+      ORDER BY name
     `, [restaurantId]);
 
     res.json(menuItems);
@@ -126,9 +167,9 @@ router.post('/menu', authMiddleware, requireRole('restaurant_owner'), upload.sin
     // Insert menu item with image as BLOB
     const [result] = await connection.query(`
       INSERT INTO Menu_Items 
-      (restaurant_id, item_name, description, price, category, is_vegetarian, image)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [restaurantId, itemName, description, price, category, isVegetarian === 'true', imageBuffer]);
+      (restaurant_id, name, description, price, image)
+      VALUES (?, ?, ?, ?, ?)
+    `, [restaurantId, itemName, description, price, imageBuffer]);
 
     res.status(201).json({
       message: 'Menu item added successfully',
@@ -170,19 +211,17 @@ router.put('/menu/:itemId', authMiddleware, requireRole('restaurant_owner'), upl
     if (imageBuffer) {
       query = `
         UPDATE Menu_Items 
-        SET item_name = ?, description = ?, price = ?, 
-            category = ?, is_vegetarian = ?, is_available = ?, image = ?
+        SET name = ?, description = ?, price = ?, is_available = ?, image = ?
         WHERE item_id = ?
       `;
-      params = [itemName, description, price, category, isVegetarian === 'true', isAvailable === 'true', imageBuffer, itemId];
+      params = [itemName, description, price, isAvailable === 'true', imageBuffer, itemId];
     } else {
       query = `
         UPDATE Menu_Items 
-        SET item_name = ?, description = ?, price = ?, 
-            category = ?, is_vegetarian = ?, is_available = ?
+        SET name = ?, description = ?, price = ?, is_available = ?
         WHERE item_id = ?
       `;
-      params = [itemName, description, price, category, isVegetarian === 'true', isAvailable === 'true', itemId];
+      params = [itemName, description, price, isAvailable === 'true', itemId];
     }
 
     await connection.query(query, params);
@@ -253,7 +292,7 @@ router.get('/analytics', authMiddleware, requireRole('restaurant_owner'), async 
         AVG(o.total_amount) as avg_order_value
       FROM Orders o
       WHERE o.restaurant_id = ? 
-        AND o.status NOT IN ('cancelled')
+        AND o.order_status NOT IN ('cancelled')
         AND o.order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
       GROUP BY DATE(o.order_date)
       ORDER BY date DESC
@@ -262,20 +301,20 @@ router.get('/analytics', authMiddleware, requireRole('restaurant_owner'), async 
     // Top selling items (nested query with aggregate)
     const [topItems] = await connection.query(`
       SELECT 
-        mi.item_name,
+        mi.name as item_name,
         COUNT(oi.item_id) as times_ordered,
         SUM(oi.quantity) as total_quantity,
-        SUM(oi.quantity * oi.price) as total_revenue
+        SUM(oi.quantity * oi.price_per_item) as total_revenue
       FROM Order_Items oi
       JOIN Menu_Items mi ON oi.item_id = mi.item_id
       WHERE oi.order_id IN (
         SELECT order_id 
         FROM Orders 
         WHERE restaurant_id = ? 
-          AND status NOT IN ('cancelled')
+          AND order_status NOT IN ('cancelled')
           AND order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
       )
-      GROUP BY mi.item_id, mi.item_name
+      GROUP BY mi.item_id, mi.name
       ORDER BY total_quantity DESC
       LIMIT 10
     `, [restaurantId]);
@@ -289,7 +328,7 @@ router.get('/analytics', authMiddleware, requireRole('restaurant_owner'), async 
         AVG(rating) as avg_rating
       FROM Orders
       WHERE restaurant_id = ? 
-        AND status NOT IN ('cancelled')
+        AND order_status NOT IN ('cancelled')
         AND order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
     `, [restaurantId]);
 
@@ -304,4 +343,147 @@ router.get('/analytics', authMiddleware, requireRole('restaurant_owner'), async 
   }
 });
 
+/**
+ * Get orders for restaurant owner's restaurant
+ * GET /api/restaurant-owner/orders
+ */
+router.get('/orders', authMiddleware, requireRole('restaurant_owner'), async (req, res) => {
+  try {
+    const connection = db.getConnectionByUserType(req.user.userType);
+    const { status } = req.query;
+    
+    // Get restaurant_id for this owner
+    const [restaurants] = await connection.query(
+      'SELECT restaurant_id FROM Restaurant_Owners WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    if (restaurants.length === 0) {
+      return res.status(404).json({ error: 'No restaurant found' });
+    }
+
+    const restaurantId = restaurants[0].restaurant_id;
+
+    // Build query with optional status filter
+    let query = `
+      SELECT 
+        o.order_id,
+        o.order_date,
+        o.order_status,
+        o.total_amount,
+        o.rating,
+        u.first_name as customer_first_name,
+        u.last_name as customer_last_name,
+        u.phone_num as customer_phone,
+        u.email as customer_email,
+        a.address as delivery_address,
+        a.city as delivery_city,
+        a.latitude as customer_latitude,
+        a.longitude as customer_longitude,
+        d.first_name as driver_first_name,
+        d.last_name as driver_last_name,
+        d.phone_num as driver_phone,
+        d.num_plate as driver_plate,
+        d.current_latitude as driver_latitude,
+        d.current_longitude as driver_longitude,
+        u_driver.email as driver_email,
+        p.payment_method,
+        p.status as payment_status
+      FROM Orders o
+      JOIN Users u ON o.user_id = u.user_id
+      JOIN Addresses a ON o.address_id = a.address_id
+      LEFT JOIN Drivers d ON o.driver_id = d.driver_id
+      LEFT JOIN Users u_driver ON d.user_id = u_driver.user_id
+      LEFT JOIN Payments p ON o.order_id = p.order_id
+      WHERE o.restaurant_id = ?
+    `;
+
+    const params = [restaurantId];
+
+    if (status) {
+      query += ' AND o.order_status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY o.order_date DESC LIMIT 50';
+
+    const [orders] = await connection.query(query, params);
+
+    // For each order, get the items
+    for (let order of orders) {
+      const [items] = await connection.query(`
+        SELECT 
+          oi.quantity,
+          oi.price_per_item,
+          mi.name as item_name,
+          mi.description
+        FROM Order_Items oi
+        JOIN Menu_Items mi ON oi.item_id = mi.item_id
+        WHERE oi.order_id = ?
+      `, [order.order_id]);
+      
+      order.items = items;
+    }
+
+    res.json(orders);
+  } catch (error) {
+    console.error('Get restaurant orders error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * Mark order as prepared
+ * PUT /api/restaurant-owner/orders/:orderId/prepare
+ * Changes status from 'confirmed' to 'preparing'
+ */
+router.put('/orders/:orderId/prepare', authMiddleware, requireRole('restaurant_owner'), async (req, res) => {
+  try {
+    const connection = db.admin; // Use admin for UPDATE
+    const { orderId } = req.params;
+    
+    // Verify this order belongs to owner's restaurant
+    const [restaurants] = await db.getConnectionByUserType(req.user.userType).query(
+      'SELECT restaurant_id FROM Restaurant_Owners WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    if (restaurants.length === 0) {
+      return res.status(404).json({ error: 'No restaurant found' });
+    }
+
+    const restaurantId = restaurants[0].restaurant_id;
+
+    // Check order exists and belongs to this restaurant
+    const [orders] = await connection.query(
+      'SELECT * FROM Orders WHERE order_id = ? AND restaurant_id = ?',
+      [orderId, restaurantId]
+    );
+
+    if (orders.length === 0) {
+      return res.status(403).json({ error: 'Order not found or not from your restaurant' });
+    }
+
+    const order = orders[0];
+
+    // Allow transition from 'pending' or 'confirmed' to 'preparing'
+    if (order.order_status !== 'confirmed' && order.order_status !== 'pending') {
+      return res.status(400).json({ error: 'Order must be in pending or confirmed status to mark as preparing' });
+    }
+
+    // Update order status to preparing
+    await connection.query(
+      'UPDATE Orders SET order_status = ? WHERE order_id = ?',
+      ['preparing', orderId]
+    );
+
+    res.json({ message: 'Order marked as preparing' });
+  } catch (error) {
+    console.error('Mark order prepared error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
+
+

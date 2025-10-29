@@ -170,9 +170,35 @@ const DriverDashboard = () => {
 
       alert('Order status updated!');
       fetchActiveOrders();
+      fetchProfile(); // Refresh profile to update availability status
     } catch (error) {
       console.error('Error updating status:', error);
       alert('Failed to update order status');
+    }
+  };
+
+  /**
+   * Complete delivery - simplified endpoint
+   */
+  const completeDelivery = async (orderId) => {
+    if (!window.confirm('Mark this order as delivered?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${API_URL}/driver-orders/orders/${orderId}/complete`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      alert('Delivery completed successfully! 🎉');
+      fetchActiveOrders();
+      fetchProfile(); // Refresh profile to update availability status
+    } catch (error) {
+      console.error('Error completing delivery:', error);
+      alert(error.response?.data?.error || 'Failed to complete delivery');
     }
   };
 
@@ -190,23 +216,29 @@ const DriverDashboard = () => {
    * Get status action button for order
    */
   const getStatusButton = (order) => {
-    switch (order.status) {
+    switch (order.order_status) {
+      case 'pending':
+        return (
+          <div className="status-info">
+            <span className="status-badge waiting">⏳ Waiting for restaurant to prepare</span>
+          </div>
+        );
       case 'preparing':
         return (
           <button
             className="btn btn-sm btn-info"
             onClick={() => updateOrderStatus(order.order_id, 'out_for_delivery')}
           >
-            Start Delivery
+            📦 Picked Up
           </button>
         );
       case 'out_for_delivery':
         return (
           <button
             className="btn btn-sm btn-success"
-            onClick={() => updateOrderStatus(order.order_id, 'delivered')}
+            onClick={() => completeDelivery(order.order_id)}
           >
-            Mark as Delivered
+            ✓ Delivered
           </button>
         );
       case 'delivered':
@@ -227,8 +259,9 @@ const DriverDashboard = () => {
         {profile && (
           <div className="driver-info">
             <h2>{profile.first_name} {profile.last_name}</h2>
-            <p>{profile.vehicle_type} | License: {profile.license_number}</p>
-            <p>{profile.phone_num}</p>
+            <p>Vehicle: {profile.num_plate}</p>
+            <p>📞 {profile.phone_num}</p>
+            {profile.current_location && <p>📍 {profile.current_location}</p>}
             
             {/* Availability Toggle */}
             <div className="availability-toggle">
@@ -326,8 +359,8 @@ const DriverDashboard = () => {
                   <div className="delivery-header">
                     <div>
                       <h4>Order #{order.order_id}</h4>
-                      <span className={`status-badge ${order.status}`}>
-                        {order.status.replace('_', ' ').toUpperCase()}
+                      <span className={`status-badge ${order.order_status}`}>
+                        {order.order_status?.replace('_', ' ').toUpperCase()}
                       </span>
                     </div>
                     <div className="order-amount">₹{order.total_amount}</div>

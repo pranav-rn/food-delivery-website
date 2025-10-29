@@ -115,11 +115,22 @@ const OrderDetails = () => {
           </section>
 
           {order.driver_first_name && (
+            <section className="details-section driver-info-section">
+              <h2>🚗 Driver Information</h2>
+              <div className="driver-details">
+                <p><strong>Name:</strong> {order.driver_first_name} {order.driver_last_name}</p>
+                <p><strong>Phone:</strong> 📞 {order.driver_phone}</p>
+                {order.driver_email && <p><strong>Email:</strong> 📧 {order.driver_email}</p>}
+                <p><strong>Vehicle:</strong> 🚗 {order.driver_plate}</p>
+              </div>
+            </section>
+          )}
+
+          {!order.driver_first_name && order.order_status === 'confirmed' && (
             <section className="details-section">
-              <h2>Driver Information</h2>
-              <p><strong>{order.driver_first_name} {order.driver_last_name}</strong></p>
-              <p>📞 {order.driver_phone}</p>
-              <p>🚗 {order.driver_plate}</p>
+              <div className="info-message">
+                <p>⏳ Finding a driver for your order...</p>
+              </div>
             </section>
           )}
 
@@ -203,8 +214,16 @@ const OrderDetails = () => {
                     <span>Payment Status</span>
                     <span style={{ color: order.payment.status === 'completed' ? '#4caf50' : '#ff9800', fontWeight: 'bold', textTransform: 'capitalize' }}>
                       {order.payment.status}
+                      {order.payment.status === 'pending' && ' (Processing...)'}
                     </span>
                   </div>
+                  {order.payment.status === 'pending' && (
+                    <div className="summary-row" style={{ fontSize: '0.9em', color: '#666' }}>
+                      <span colSpan="2" style={{ fontStyle: 'italic' }}>
+                        💳 Payment is being processed. Please refresh in a few seconds.
+                      </span>
+                    </div>
+                  )}
                 </>
               )}
               {!order.payment && (

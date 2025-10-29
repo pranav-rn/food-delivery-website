@@ -43,6 +43,21 @@
   color: #ff6b35;
 }
 
+.dashboard-link {
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: white !important;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.dashboard-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+  color: white !important;
+}
+
 .cart-link {
   position: relative;
 }

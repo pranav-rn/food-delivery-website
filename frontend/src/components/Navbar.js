@@ -22,14 +22,33 @@ const Navbar = () => {
 
           {isAuthenticated ? (
             <>
-              <Link to="/orders" className="navbar-link">
-                My Orders
-              </Link>
+              {/* Role-specific dashboard links */}
+              {user?.userType === 'driver' && (
+                <Link to="/driver-dashboard" className="navbar-link dashboard-link">
+                  🚗 Driver Dashboard
+                </Link>
+              )}
+              {user?.userType === 'restaurant_owner' && (
+                <Link to="/restaurant-dashboard" className="navbar-link dashboard-link">
+                  🍽️ Manage Restaurant
+                </Link>
+              )}
+              
+              {/* Customer-only links */}
+              {user?.userType === 'customer' && (
+                <>
+                  <Link to="/orders" className="navbar-link">
+                    My Orders
+                  </Link>
+                  <Link to="/cart" className="navbar-link cart-link">
+                    🛒 Cart {getItemCount() > 0 && <span className="cart-badge">{getItemCount()}</span>}
+                  </Link>
+                </>
+              )}
+              
+              {/* Common links */}
               <Link to="/profile" className="navbar-link">
                 Profile
-              </Link>
-              <Link to="/cart" className="navbar-link cart-link">
-                🛒 Cart {getItemCount() > 0 && <span className="cart-badge">{getItemCount()}</span>}
               </Link>
               <button onClick={logout} className="navbar-button">
                 Logout

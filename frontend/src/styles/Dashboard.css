@@ -142,6 +142,18 @@ input:checked + .slider:before {
   animation: fadeIn 0.3s;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 25px;
+  gap: 20px;
+}
+
+.section-header h3 {
+  margin: 0 0 5px 0;
+}
+
 .tab-description {
   color: #6b7280;
   margin-bottom: 20px;
@@ -529,6 +541,38 @@ input:checked + .slider:before {
   color: #065f46;
 }
 
+.status-badge.waiting {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Status info messages */
+.status-info {
+  display: inline-block;
+  padding: 10px 15px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.status-info.status-success {
+  background: #d1fae5;
+  color: #065f46;
+  border-left: 4px solid #10b981;
+}
+
+/* Order actions section */
+.order-actions {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .no-orders {
   text-align: center;
   padding: 60px 20px;
@@ -612,6 +656,12 @@ input:checked + .slider:before {
   font-size: 0.875rem;
 }
 
+.btn-lg {
+  padding: 14px 28px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
 .btn-block {
   width: 100%;
   display: block;
@@ -622,6 +672,41 @@ input:checked + .slider:before {
   padding: 40px;
   color: #6b7280;
   font-size: 1.2rem;
+}
+
+/* Driver section styling */
+.driver-section {
+  background: #f0f9ff;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #3b82f6;
+}
+
+.driver-info-section {
+  background: #f0fdf4;
+  border-left: 4px solid #10b981;
+}
+
+.driver-details p {
+  margin: 8px 0;
+}
+
+.text-muted {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.info-message {
+  background: #fef3c7;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #f59e0b;
+  color: #92400e;
+}
+
+.info-message p {
+  margin: 0;
+  font-weight: 500;
 }
 
 /* Responsive */

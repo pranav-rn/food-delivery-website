@@ -5,6 +5,7 @@ const db = require('../config/db');
 // Get all restaurants
 router.get('/', async (req, res) => {
   try {
+    const connection = db.admin; // Public endpoint, use admin connection
     const { cuisine, search } = req.query;
     let query = 'SELECT * FROM Restaurants WHERE 1=1';
     const params = [];
@@ -21,7 +22,7 @@ router.get('/', async (req, res) => {
 
     query += ' ORDER BY rating DESC';
 
-    const [restaurants] = await db.query(query, params);
+    const [restaurants] = await connection.query(query, params);
     res.json(restaurants);
   } catch (error) {
     console.error('Error fetching restaurants:', error);
@@ -32,7 +33,9 @@ router.get('/', async (req, res) => {
 // Get restaurant by ID
 router.get('/:id', async (req, res) => {
   try {
-    const [restaurants] = await db.query(
+    const connection = db.admin; // Public endpoint
+    
+    const [restaurants] = await connection.query(
       'SELECT * FROM Restaurants WHERE restaurant_id = ?',
       [req.params.id]
     );
@@ -42,13 +45,13 @@ router.get('/:id', async (req, res) => {
     }
 
     // Check if restaurant is open now using function
-    const [openStatus] = await db.query(
+    const [openStatus] = await connection.query(
       'SELECT is_restaurant_open_now(?) as is_open',
       [req.params.id]
     );
 
     // Check if restaurant is busy using function
-    const [busyStatus] = await db.query(
+    const [busyStatus] = await connection.query(
       'SELECT is_restaurant_busy(?) as is_busy',
       [req.params.id]
     );
@@ -69,7 +72,9 @@ router.get('/:id', async (req, res) => {
 // Get restaurant menu
 router.get('/:id/menu', async (req, res) => {
   try {
-    const [menuItems] = await db.query(
+    const connection = db.admin; // Public endpoint
+    
+    const [menuItems] = await connection.query(
       `SELECT 
         item_id,
         name,
@@ -93,14 +98,15 @@ router.get('/:id/menu', async (req, res) => {
 // Get restaurant revenue (admin endpoint)
 router.get('/:id/revenue', async (req, res) => {
   try {
+    const connection = db.admin; // Admin operation
     const { startDate, endDate } = req.query;
     
-    const [result] = await db.query(
+    const [result] = await connection.query(
       'CALL calculate_restaurant_revenue(?, ?, ?, @total_revenue, @order_count)',
       [req.params.id, startDate, endDate]
     );
 
-    const [revenue] = await db.query('SELECT @total_revenue as total_revenue, @order_count as order_count');
+    const [revenue] = await connection.query('SELECT @total_revenue as total_revenue, @order_count as order_count');
 
     res.json(revenue[0]);
   } catch (error) {
@@ -112,7 +118,9 @@ router.get('/:id/revenue', async (req, res) => {
 // Get all cuisines
 router.get('/cuisines/list', async (req, res) => {
   try {
-    const [cuisines] = await db.query(
+    const connection = db.admin; // Public endpoint
+    
+    const [cuisines] = await connection.query(
       'SELECT DISTINCT cuisine FROM Restaurants WHERE cuisine IS NOT NULL ORDER BY cuisine'
     );
     res.json(cuisines.map(c => c.cuisine));

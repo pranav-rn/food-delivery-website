@@ -82,7 +82,11 @@ const Checkout = () => {
       });
 
       clearCart();
-      alert('Order placed successfully!');
+      
+      // Show payment processing message
+      alert('Order placed successfully! Payment is being processed...');
+      
+      // Navigate to order details
       navigate(`/orders/${orderId}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to place order');

@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
+// const bcrypt = require('bcryptjs'); // Removed - using plaintext passwords
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/db');
@@ -38,9 +38,8 @@ router.post('/register', [
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    // Store password as plaintext (for development/testing only)
+    const passwordHash = password;
 
     // Insert user
     const [result] = await db.admin.query(
@@ -121,8 +120,8 @@ router.post('/login', [
       return res.status(403).json({ error: 'Account is inactive' });
     }
 
-    // Verify password
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    // Verify password (plaintext comparison)
+    const isMatch = password === user.password_hash;
     if (!isMatch) {
       return res.status(400).json({ error: 'Invalid credentials' });
     }

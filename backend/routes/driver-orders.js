@@ -24,11 +24,11 @@ router.get('/profile', authMiddleware, requireRole('driver'), async (req, res) =
       SELECT 
         d.driver_id,
         d.user_id,
-        d.vehicle_type,
-        d.license_number,
+        d.num_plate,
         d.is_available,
         d.current_latitude,
         d.current_longitude,
+        d.current_location,
         u.first_name,
         u.last_name,
         u.email,
@@ -105,38 +105,64 @@ router.get('/orders', authMiddleware, requireRole('driver'), async (req, res) =>
       SELECT 
         o.order_id,
         o.order_date,
-        o.status,
+        o.order_status,
         o.total_amount,
-        o.delivery_address,
-        o.estimated_delivery_time,
-        r.restaurant_name,
+        o.address_id,
+        o.rating,
+        r.restaurant_id,
+        r.name as restaurant_name,
         r.address as restaurant_address,
         r.phone_num as restaurant_phone,
+        r.latitude as restaurant_latitude,
+        r.longitude as restaurant_longitude,
         u.first_name as customer_first_name,
         u.last_name as customer_last_name,
         u.phone_num as customer_phone,
-        a.address_line1,
-        a.address_line2,
+        a.address,
         a.city,
         a.state,
-        a.pincode
+        a.postal_code,
+        a.latitude as customer_latitude,
+        a.longitude as customer_longitude,
+        p.payment_method,
+        p.status as payment_status
       FROM Orders o
       JOIN Restaurants r ON o.restaurant_id = r.restaurant_id
       JOIN Users u ON o.user_id = u.user_id
-      LEFT JOIN Addresses a ON o.delivery_address = a.address_id
+      LEFT JOIN Addresses a ON o.address_id = a.address_id
+      LEFT JOIN Payments p ON o.order_id = p.order_id
       WHERE o.driver_id = ?
     `;
 
     const params = [driverId];
 
     if (status) {
-      query += ' AND o.status = ?';
+      query += ' AND o.order_status = ?';
       params.push(status);
+    } else {
+      // By default, show only orders that are ready for pickup or in progress
+      query += " AND o.order_status IN ('preparing', 'out_for_delivery', 'delivered')";
     }
 
     query += ' ORDER BY o.order_date DESC';
 
     const [orders] = await connection.query(query, params);
+
+    // Get items for each order
+    for (let order of orders) {
+      const [items] = await connection.query(`
+        SELECT 
+          oi.quantity,
+          oi.price_per_item,
+          mi.name as item_name,
+          mi.description
+        FROM Order_Items oi
+        JOIN Menu_Items mi ON oi.item_id = mi.item_id
+        WHERE oi.order_id = ?
+      `, [order.order_id]);
+      
+      order.items = items;
+    }
 
     res.json(orders);
   } catch (error) {
@@ -160,20 +186,20 @@ router.get('/available-orders', authMiddleware, requireRole('driver'), async (re
         o.order_id,
         o.order_date,
         o.total_amount,
-        o.delivery_address,
-        r.restaurant_name,
+        o.address_id,
+        r.name as restaurant_name,
         r.address as restaurant_address,
         r.latitude as restaurant_lat,
         r.longitude as restaurant_lng,
-        a.address_line1,
+        a.address,
         a.city,
         a.latitude as delivery_lat,
         a.longitude as delivery_lng
       FROM Orders o
       JOIN Restaurants r ON o.restaurant_id = r.restaurant_id
-      LEFT JOIN Addresses a ON o.delivery_address = a.address_id
+      LEFT JOIN Addresses a ON o.address_id = a.address_id
       WHERE o.driver_id IS NULL 
-        AND o.status = 'confirmed'
+        AND o.order_status = 'confirmed'
         AND o.order_id NOT IN (
           SELECT order_id 
           FROM Orders 
@@ -265,6 +291,69 @@ router.put('/orders/:orderId/status', authMiddleware, requireRole('driver'), asy
 
     // Verify driver is assigned to this order
     const [orders] = await connection.query(
+      'SELECT order_status FROM Orders WHERE order_id = ? AND driver_id = ?',
+      [orderId, driverId]
+    );
+
+    if (orders.length === 0) {
+      return res.status(403).json({ error: 'Order not assigned to this driver' });
+    }
+
+    const currentStatus = orders[0].order_status;
+
+    // Enforce status transition rules
+    if (status === 'out_for_delivery') {
+      if (currentStatus !== 'preparing') {
+        return res.status(400).json({ 
+          error: 'Order must be marked as preparing by restaurant before starting delivery' 
+        });
+      }
+      // Mark driver as unavailable when starting delivery
+      await db.admin.query(
+        'UPDATE Drivers SET is_available = FALSE WHERE driver_id = ?',
+        [driverId]
+      );
+    }
+
+    // Update status
+    if (status === 'delivered') {
+      // Call stored procedure to mark as completed
+      await connection.query('CALL complete_order(?, ?)', [orderId, new Date()]);
+    } else {
+      await db.admin.query('UPDATE Orders SET order_status = ? WHERE order_id = ?', [status, orderId]);
+    }
+
+    res.json({ message: 'Order status updated successfully' });
+  } catch (error) {
+    console.error('Update order status error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * Complete delivery (simplified endpoint)
+ * POST /api/drivers/orders/:orderId/complete
+ * Marks order as delivered and releases driver
+ */
+router.post('/orders/:orderId/complete', authMiddleware, requireRole('driver'), async (req, res) => {
+  try {
+    const connection = db.admin; // Use admin for UPDATE
+    const { orderId } = req.params;
+
+    // Get driver_id
+    const [drivers] = await db.getConnectionByUserType(req.user.userType).query(
+      'SELECT driver_id FROM Drivers WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    if (drivers.length === 0) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    const driverId = drivers[0].driver_id;
+
+    // Verify driver is assigned to this order
+    const [orders] = await connection.query(
       'SELECT * FROM Orders WHERE order_id = ? AND driver_id = ?',
       [orderId, driverId]
     );
@@ -273,17 +362,23 @@ router.put('/orders/:orderId/status', authMiddleware, requireRole('driver'), asy
       return res.status(403).json({ error: 'Order not assigned to this driver' });
     }
 
-    // Update status
-    if (status === 'delivered') {
-      // Call stored procedure to mark as completed
-      await connection.query('CALL complete_order(?, ?)', [orderId, new Date()]);
-    } else {
-      await connection.query('UPDATE Orders SET status = ? WHERE order_id = ?', [status, orderId]);
-    }
+    // Mark as delivered
+    await connection.query(
+      'UPDATE Orders SET order_status = ? WHERE order_id = ?',
+      ['delivered', orderId]
+    );
 
-    res.json({ message: 'Order status updated successfully' });
+    // Set driver back to available for new orders
+    await connection.query(
+      'UPDATE Drivers SET is_available = TRUE WHERE driver_id = ?',
+      [driverId]
+    );
+
+    console.log(`Order ${orderId} delivered. Driver ${driverId} is now available for new orders.`);
+
+    res.json({ message: 'Delivery completed successfully' });
   } catch (error) {
-    console.error('Update order status error:', error);
+    console.error('Complete delivery error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -312,16 +407,16 @@ router.get('/earnings', authMiddleware, requireRole('driver'), async (req, res) 
     const driverId = drivers[0].driver_id;
 
     // Aggregate earnings query
+    // Assuming drivers earn 20% commission on total order amount
     let query = `
       SELECT 
         COUNT(o.order_id) as total_deliveries,
-        SUM(p.delivery_fee) as total_earnings,
-        AVG(p.delivery_fee) as avg_earning_per_delivery,
+        SUM(o.total_amount * 0.20) as total_earnings,
+        AVG(o.total_amount * 0.20) as avg_earning_per_delivery,
         MIN(o.order_date) as first_delivery,
         MAX(o.order_date) as last_delivery
       FROM Orders o
-      JOIN Payments p ON o.order_id = p.order_id
-      WHERE o.driver_id = ? AND o.status = 'delivered'
+      WHERE o.driver_id = ? AND o.order_status = 'delivered'
     `;
 
     const params = [driverId];
@@ -343,10 +438,9 @@ router.get('/earnings', authMiddleware, requireRole('driver'), async (req, res) 
       SELECT 
         DATE(o.order_date) as date,
         COUNT(o.order_id) as deliveries,
-        SUM(p.delivery_fee) as earnings
+        SUM(o.total_amount * 0.20) as earnings
       FROM Orders o
-      JOIN Payments p ON o.order_id = p.order_id
-      WHERE o.driver_id = ? AND o.status = 'delivered'
+      WHERE o.driver_id = ? AND o.order_status = 'delivered'
     `;
 
     if (startDate) {
@@ -399,8 +493,8 @@ router.get('/closest/:restaurantId', async (req, res) => {
     const [drivers] = await connection.query(`
       SELECT 
         d.driver_id,
-        d.vehicle_type,
-        d.license_number,
+        d.num_plate,
+        d.current_location,
         d.current_latitude,
         d.current_longitude,
         u.first_name,
