@@ -30,7 +30,19 @@ export const CartProvider = ({ children }) => {
     // If cart has items from different restaurant, clear it
     if (restaurantId && restaurantId !== restaurant.restaurant_id) {
       if (window.confirm('Your cart contains items from another restaurant. Do you want to clear it?')) {
-        clearCart();
+        // Clear the cart first
+        setCartItems([]);
+        setRestaurantId(null);
+        localStorage.removeItem('cart');
+        localStorage.removeItem('cartRestaurantId');
+        
+        // Add the new item to the now-empty cart
+        const newCart = [{ ...item, quantity: 1, restaurant_name: restaurant.name }];
+        setCartItems(newCart);
+        setRestaurantId(restaurant.restaurant_id);
+        localStorage.setItem('cart', JSON.stringify(newCart));
+        localStorage.setItem('cartRestaurantId', restaurant.restaurant_id);
+        return true;
       } else {
         return false;
       }
