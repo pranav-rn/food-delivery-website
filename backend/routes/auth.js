@@ -14,7 +14,7 @@ const db = require('../config/db');
 /**
  * Register new user
  * POST /api/auth/register
- * Body: { firstName, lastName, email, password, phoneNum, userType, restaurantId?, driverId? }
+ * Body: { firstName, lastName, email, password, phoneNum, userType, restaurant?, numPlate?, currentLocation? }
  */
 router.post('/register', [
   body('email').isEmail(),
@@ -29,7 +29,19 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { firstName, lastName, email, password, phoneNum, userType, restaurantId, driverId } = req.body;
+    const { 
+      firstName, 
+      lastName, 
+      email, 
+      password, 
+      phoneNum, 
+      userType, 
+      restaurant, 
+      numPlate, 
+      currentLocation,
+      currentLatitude,
+      currentLongitude
+    } = req.body;
     const finalUserType = userType || 'customer';
 
     // Check if user exists
@@ -49,19 +61,49 @@ router.post('/register', [
 
     const userId = result.insertId;
 
-    // Link to restaurant owner if applicable
-    if (finalUserType === 'restaurant_owner' && restaurantId) {
+    // Handle restaurant owner registration
+    if (finalUserType === 'restaurant_owner' && restaurant) {
+      // Create the restaurant
+      const [restaurantResult] = await db.admin.query(
+        `INSERT INTO Restaurants (name, description, address, latitude, longitude, phone_num, cuisine, is_open) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)`,
+        [
+          restaurant.name,
+          restaurant.description || null,
+          restaurant.address,
+          restaurant.latitude || null,
+          restaurant.longitude || null,
+          restaurant.phoneNum || phoneNum,
+          restaurant.cuisine
+        ]
+      );
+
+      const restaurantId = restaurantResult.insertId;
+
+      // Link user to restaurant
       await db.admin.query(
         'INSERT INTO Restaurant_Owners (user_id, restaurant_id) VALUES (?, ?)',
         [userId, restaurantId]
       );
     }
 
-    // Link to driver if applicable
-    if (finalUserType === 'driver' && driverId) {
+    // Handle driver registration
+    if (finalUserType === 'driver') {
+      // Create driver profile
       await db.admin.query(
-        'UPDATE Drivers SET user_id = ? WHERE driver_id = ?',
-        [userId, driverId]
+        `INSERT INTO Drivers (user_id, first_name, last_name, phone_num, num_plate, current_location, 
+         current_latitude, current_longitude, is_available) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+        [
+          userId,
+          firstName,
+          lastName,
+          phoneNum,
+          numPlate || null,
+          currentLocation || null,
+          currentLatitude || null,
+          currentLongitude || null
+        ]
       );
     }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import './Navbar.css';
@@ -7,6 +7,12 @@ import './Navbar.css';
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const { getItemCount } = useCart();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <nav className="navbar">
@@ -50,7 +56,7 @@ const Navbar = () => {
               <Link to="/profile" className="navbar-link">
                 Profile
               </Link>
-              <button onClick={logout} className="navbar-button">
+              <button onClick={handleLogout} className="navbar-button">
                 Logout
               </button>
             </>

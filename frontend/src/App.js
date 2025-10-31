@@ -77,9 +77,9 @@ function App() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/restaurants" element={<Restaurants />} />
                 <Route path="/restaurants/:id" element={<RestaurantDetails />} />
-                <Route path="/cart" element={<Cart />} />
                 
-                {/* Customer routes */}
+                {/* Customer routes - Protected */}
+                <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
                 <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
                 <Route path="/orders" element={<PrivateRoute><Orders /></PrivateRoute>} />
                 <Route path="/orders/:id" element={<PrivateRoute><OrderDetails /></PrivateRoute>} />

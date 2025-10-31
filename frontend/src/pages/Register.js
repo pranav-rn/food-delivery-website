@@ -20,10 +20,18 @@ const Register = () => {
     phoneNum: '',
     userType: 'customer', // Default user type
     // Driver-specific fields
-    vehicleType: '',
-    licenseNumber: '',
+    numPlate: '',
+    currentLocation: '',
+    currentLatitude: '',
+    currentLongitude: '',
     // Restaurant owner-specific fields
-    restaurantId: ''
+    restaurantName: '',
+    restaurantDescription: '',
+    restaurantAddress: '',
+    restaurantLatitude: '',
+    restaurantLongitude: '',
+    restaurantPhone: '',
+    cuisine: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,17 +39,10 @@ const Register = () => {
   const { register, isAuthenticated, userType } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      redirectToDashboard(userType);
-    }
-  }, [isAuthenticated, navigate]);
-
   /**
    * Redirect to appropriate dashboard based on user role
    */
-  const redirectToDashboard = (userType) => {
+  const redirectToDashboard = React.useCallback((userType) => {
     switch(userType) {
       case 'restaurant_owner':
         navigate('/restaurant-owner-dashboard');
@@ -54,7 +55,14 @@ const Register = () => {
         navigate('/restaurants');
         break;
     }
-  };
+  }, [navigate]);
+
+  // Redirect if already authenticated
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      redirectToDashboard(userType);
+    }
+  }, [isAuthenticated, userType, redirectToDashboard]);
 
   /**
    * Handle form input changes
@@ -85,13 +93,14 @@ const Register = () => {
     }
 
     // Validate role-specific fields
-    if (formData.userType === 'driver' && (!formData.vehicleType || !formData.licenseNumber)) {
-      setError('Vehicle type and license number are required for drivers');
+    if (formData.userType === 'driver' && (!formData.numPlate)) {
+      setError('Vehicle plate number is required for drivers');
       return;
     }
 
-    if (formData.userType === 'restaurant_owner' && !formData.restaurantId) {
-      setError('Restaurant ID is required for restaurant owners');
+    if (formData.userType === 'restaurant_owner' && 
+        (!formData.restaurantName || !formData.restaurantAddress || !formData.cuisine)) {
+      setError('Restaurant name, address, and cuisine are required for restaurant owners');
       return;
     }
 
@@ -109,10 +118,20 @@ const Register = () => {
 
     // Add role-specific fields
     if (formData.userType === 'driver') {
-      registrationData.vehicleType = formData.vehicleType;
-      registrationData.licenseNumber = formData.licenseNumber;
+      registrationData.numPlate = formData.numPlate;
+      registrationData.currentLocation = formData.currentLocation;
+      registrationData.currentLatitude = formData.currentLatitude || null;
+      registrationData.currentLongitude = formData.currentLongitude || null;
     } else if (formData.userType === 'restaurant_owner') {
-      registrationData.restaurantId = formData.restaurantId;
+      registrationData.restaurant = {
+        name: formData.restaurantName,
+        description: formData.restaurantDescription,
+        address: formData.restaurantAddress,
+        latitude: formData.restaurantLatitude || null,
+        longitude: formData.restaurantLongitude || null,
+        phoneNum: formData.restaurantPhone,
+        cuisine: formData.cuisine
+      };
     }
 
     const result = await register(registrationData);
@@ -207,51 +226,167 @@ const Register = () => {
           {formData.userType === 'driver' && (
             <>
               <div className="form-group">
-                <label htmlFor="vehicleType">Vehicle Type</label>
-                <select
-                  id="vehicleType"
-                  name="vehicleType"
-                  value={formData.vehicleType}
-                  onChange={handleChange}
-                  required
-                  className="form-select"
-                >
-                  <option value="">Select vehicle type</option>
-                  <option value="Motorcycle">Motorcycle</option>
-                  <option value="Car">Car</option>
-                  <option value="Bicycle">Bicycle</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label htmlFor="licenseNumber">License Number</label>
+                <label htmlFor="numPlate">Vehicle Plate Number *</label>
                 <input
                   type="text"
-                  id="licenseNumber"
-                  name="licenseNumber"
-                  value={formData.licenseNumber}
+                  id="numPlate"
+                  name="numPlate"
+                  value={formData.numPlate}
                   onChange={handleChange}
                   required
-                  placeholder="Enter your license number"
+                  placeholder="e.g., MH12AB1234"
                 />
+              </div>
+              <div className="form-group">
+                <label htmlFor="currentLocation">Current Location</label>
+                <input
+                  type="text"
+                  id="currentLocation"
+                  name="currentLocation"
+                  value={formData.currentLocation}
+                  onChange={handleChange}
+                  placeholder="e.g., Mumbai, Maharashtra"
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="currentLatitude">Latitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    id="currentLatitude"
+                    name="currentLatitude"
+                    value={formData.currentLatitude}
+                    onChange={handleChange}
+                    placeholder="19.0760"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="currentLongitude">Longitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    id="currentLongitude"
+                    name="currentLongitude"
+                    value={formData.currentLongitude}
+                    onChange={handleChange}
+                    placeholder="72.8777"
+                  />
+                </div>
               </div>
             </>
           )}
 
           {/* Conditional Fields for Restaurant Owner */}
           {formData.userType === 'restaurant_owner' && (
-            <div className="form-group">
-              <label htmlFor="restaurantId">Restaurant ID</label>
-              <input
-                type="number"
-                id="restaurantId"
-                name="restaurantId"
-                value={formData.restaurantId}
-                onChange={handleChange}
-                required
-                placeholder="Enter your restaurant ID"
-              />
-              <small className="form-text">Contact admin if you don't have a restaurant ID</small>
-            </div>
+            <>
+              <div className="restaurant-section">
+                <h3 style={{marginTop: '20px', marginBottom: '15px', color: '#333'}}>Restaurant Details</h3>
+                
+                <div className="form-group">
+                  <label htmlFor="restaurantName">Restaurant Name *</label>
+                  <input
+                    type="text"
+                    id="restaurantName"
+                    name="restaurantName"
+                    value={formData.restaurantName}
+                    onChange={handleChange}
+                    required
+                    placeholder="Enter restaurant name"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="restaurantDescription">Description</label>
+                  <textarea
+                    id="restaurantDescription"
+                    name="restaurantDescription"
+                    value={formData.restaurantDescription}
+                    onChange={handleChange}
+                    placeholder="Describe your restaurant"
+                    rows="3"
+                    style={{width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd'}}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="restaurantAddress">Address *</label>
+                  <input
+                    type="text"
+                    id="restaurantAddress"
+                    name="restaurantAddress"
+                    value={formData.restaurantAddress}
+                    onChange={handleChange}
+                    required
+                    placeholder="Full address"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="restaurantLatitude">Latitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      id="restaurantLatitude"
+                      name="restaurantLatitude"
+                      value={formData.restaurantLatitude}
+                      onChange={handleChange}
+                      placeholder="19.0760"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="restaurantLongitude">Longitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      id="restaurantLongitude"
+                      name="restaurantLongitude"
+                      value={formData.restaurantLongitude}
+                      onChange={handleChange}
+                      placeholder="72.8777"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="restaurantPhone">Restaurant Phone Number</label>
+                  <input
+                    type="tel"
+                    id="restaurantPhone"
+                    name="restaurantPhone"
+                    value={formData.restaurantPhone}
+                    onChange={handleChange}
+                    placeholder="Restaurant contact number"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="cuisine">Cuisine Type *</label>
+                  <select
+                    id="cuisine"
+                    name="cuisine"
+                    value={formData.cuisine}
+                    onChange={handleChange}
+                    required
+                    className="form-select"
+                  >
+                    <option value="">Select cuisine type</option>
+                    <option value="Italian">Italian</option>
+                    <option value="Chinese">Chinese</option>
+                    <option value="Indian">Indian</option>
+                    <option value="Mexican">Mexican</option>
+                    <option value="Japanese">Japanese</option>
+                    <option value="American">American</option>
+                    <option value="Thai">Thai</option>
+                    <option value="Mediterranean">Mediterranean</option>
+                    <option value="Fast Food">Fast Food</option>
+                    <option value="Bakery">Bakery</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </>
           )}
 
           <div className="form-group">
