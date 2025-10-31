@@ -23,7 +23,16 @@ router.get('/', async (req, res) => {
     query += ' ORDER BY rating DESC';
 
     const [restaurants] = await connection.query(query, params);
-    res.json(restaurants);
+    
+    // Convert image BLOBs to base64
+    const restaurantsWithImages = restaurants.map(restaurant => {
+      if (restaurant.image) {
+        restaurant.image = `data:image/jpeg;base64,${restaurant.image.toString('base64')}`;
+      }
+      return restaurant;
+    });
+    
+    res.json(restaurantsWithImages);
   } catch (error) {
     console.error('Error fetching restaurants:', error);
     res.status(500).json({ error: 'Server error' });
@@ -61,6 +70,11 @@ router.get('/:id', async (req, res) => {
       is_open_now: openStatus[0].is_open,
       is_busy: busyStatus[0].is_busy
     };
+    
+    // Convert image BLOB to base64
+    if (restaurant.image) {
+      restaurant.image = `data:image/jpeg;base64,${restaurant.image.toString('base64')}`;
+    }
 
     res.json(restaurant);
   } catch (error) {

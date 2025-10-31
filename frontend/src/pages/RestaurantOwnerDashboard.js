@@ -16,7 +16,7 @@ import '../styles/Dashboard.css';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const RestaurantOwnerDashboard = () => {
-  const { user, userType } = useAuth();
+  const { userType } = useAuth();
   const navigate = useNavigate();
 
   // State management
@@ -25,9 +25,9 @@ const RestaurantOwnerDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('orders'); // 'menu', 'orders', or 'analytics'
+  const [activeTab, setActiveTab] = useState('orders'); // 'menu', 'orders', 'analytics', or 'profile'
   
-  // Form state for add/edit
+  // Form state for add/edit menu items
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({
@@ -40,6 +40,18 @@ const RestaurantOwnerDashboard = () => {
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+
+  // Restaurant profile editing state
+  const [editingRestaurant, setEditingRestaurant] = useState(false);
+  const [restaurantFormData, setRestaurantFormData] = useState({
+    name: '',
+    description: '',
+    address: '',
+    phoneNum: '',
+    cuisine: ''
+  });
+  const [restaurantImageFile, setRestaurantImageFile] = useState(null);
+  const [restaurantImagePreview, setRestaurantImagePreview] = useState(null);
 
   // Redirect if not restaurant owner
   useEffect(() => {
@@ -321,6 +333,84 @@ const RestaurantOwnerDashboard = () => {
   };
 
   /**
+   * Open restaurant profile editor
+   */
+  const openRestaurantEditor = () => {
+    if (restaurant) {
+      setRestaurantFormData({
+        name: restaurant.restaurant_name || '',
+        description: restaurant.description || '',
+        address: restaurant.address || '',
+        phoneNum: restaurant.phone_num || '',
+        cuisine: restaurant.cuisine || ''
+      });
+      setRestaurantImagePreview(restaurant.image || null);
+    }
+    setEditingRestaurant(true);
+  };
+
+  /**
+   * Handle restaurant form input changes
+   */
+  const handleRestaurantFormChange = (e) => {
+    setRestaurantFormData({
+      ...restaurantFormData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  /**
+   * Handle restaurant image selection
+   */
+  const handleRestaurantImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setRestaurantImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setRestaurantImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  /**
+   * Update restaurant profile with image
+   */
+  const handleUpdateRestaurant = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      const data = new FormData();
+      
+      data.append('name', restaurantFormData.name);
+      data.append('description', restaurantFormData.description);
+      data.append('address', restaurantFormData.address);
+      data.append('phoneNum', restaurantFormData.phoneNum);
+      data.append('cuisine', restaurantFormData.cuisine);
+      
+      if (restaurantImageFile) {
+        data.append('image', restaurantImageFile);
+      }
+
+      await axios.put(`${API_URL}/restaurant-owner/my-restaurant`, data, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      setEditingRestaurant(false);
+      setRestaurantImageFile(null);
+      fetchRestaurantData();
+      alert('Restaurant profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating restaurant:', error);
+      alert('Failed to update restaurant profile');
+    }
+  };
+
+  /**
    * Switch to analytics tab and fetch data
    */
   const showAnalytics = () => {
@@ -340,9 +430,139 @@ const RestaurantOwnerDashboard = () => {
         <h1>Restaurant Owner Dashboard</h1>
         {restaurant && (
           <div className="restaurant-info">
-            <h2>{restaurant.restaurant_name}</h2>
-            <p>{restaurant.address} | {restaurant.phone_num}</p>
-            <p>Cuisine: {restaurant.cuisine} | Rating: {restaurant.rating || 'N/A'} ⭐</p>
+            {!editingRestaurant ? (
+              <>
+                {restaurant.image && (
+                  <img 
+                    src={restaurant.image} 
+                    alt={restaurant.restaurant_name}
+                    style={{
+                      width: '100px',
+                      height: '100px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      marginBottom: '10px'
+                    }}
+                  />
+                )}
+                <h2>{restaurant.restaurant_name}</h2>
+                <p>{restaurant.address} | {restaurant.phone_num}</p>
+                <p>Cuisine: {restaurant.cuisine} | Rating: {restaurant.rating || 'N/A'} ⭐</p>
+                {restaurant.description && <p style={{fontStyle: 'italic', marginTop: '5px'}}>{restaurant.description}</p>}
+                <button onClick={openRestaurantEditor} className="btn-edit" style={{marginTop: '10px'}}>
+                  ✏️ Edit Restaurant Profile
+                </button>
+              </>
+            ) : (
+              <div className="profile-form" style={{width: '100%', marginTop: '15px'}}>
+                <h3>Edit Restaurant Profile</h3>
+                <form onSubmit={handleUpdateRestaurant}>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px'}}>
+                    <div className="form-group">
+                      <label>Restaurant Name:</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={restaurantFormData.name}
+                        onChange={handleRestaurantFormChange}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Phone Number:</label>
+                      <input
+                        type="tel"
+                        name="phoneNum"
+                        value={restaurantFormData.phoneNum}
+                        onChange={handleRestaurantFormChange}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Cuisine Type:</label>
+                      <select
+                        name="cuisine"
+                        value={restaurantFormData.cuisine}
+                        onChange={handleRestaurantFormChange}
+                        required
+                      >
+                        <option value="">Select Cuisine</option>
+                        <option value="North Indian">North Indian</option>
+                        <option value="South Indian">South Indian</option>
+                        <option value="Chinese">Chinese</option>
+                        <option value="Italian">Italian</option>
+                        <option value="Mexican">Mexican</option>
+                        <option value="Continental">Continental</option>
+                        <option value="Fast Food">Fast Food</option>
+                        <option value="Desserts">Desserts</option>
+                        <option value="Beverages">Beverages</option>
+                        <option value="Street Food">Street Food</option>
+                        <option value="Multi-Cuisine">Multi-Cuisine</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Restaurant Image:</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleRestaurantImageChange}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Description:</label>
+                    <textarea
+                      name="description"
+                      value={restaurantFormData.description}
+                      onChange={handleRestaurantFormChange}
+                      rows="2"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Address:</label>
+                    <input
+                      type="text"
+                      name="address"
+                      value={restaurantFormData.address}
+                      onChange={handleRestaurantFormChange}
+                      required
+                    />
+                  </div>
+
+                  {restaurantImagePreview && (
+                    <img 
+                      src={restaurantImagePreview} 
+                      alt="Preview"
+                      style={{
+                        width: '150px',
+                        height: '150px',
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        marginTop: '10px'
+                      }}
+                    />
+                  )}
+
+                  <div className="form-actions" style={{marginTop: '15px'}}>
+                    <button type="submit" className="btn-save">
+                      💾 Save Changes
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn-cancel"
+                      onClick={() => setEditingRestaurant(false)}
+                    >
+                      ❌ Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -642,7 +862,7 @@ const RestaurantOwnerDashboard = () => {
         </div>
       )}
 
-      {/* Analytics Tab - Demonstrates Aggregate Queries */}
+      {/* Analytics Tab */}
       {activeTab === 'analytics' && (
         <div className="tab-content">
           {!analytics ? (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { restaurantAPI } from '../services/api';
 import './Restaurants.css';
@@ -11,25 +11,7 @@ const Restaurants = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchCuisines();
-    fetchRestaurants();
-  }, []);
-
-  useEffect(() => {
-    fetchRestaurants();
-  }, [selectedCuisine, searchQuery]);
-
-  const fetchCuisines = async () => {
-    try {
-      const response = await restaurantAPI.getCuisines();
-      setCuisines(response.data);
-    } catch (err) {
-      console.error('Error fetching cuisines:', err);
-    }
-  };
-
-  const fetchRestaurants = async () => {
+  const fetchRestaurants = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -44,6 +26,24 @@ const Restaurants = () => {
       console.error('Error fetching restaurants:', err);
     } finally {
       setLoading(false);
+    }
+  }, [selectedCuisine, searchQuery]);
+
+  useEffect(() => {
+    fetchCuisines();
+    fetchRestaurants();
+  }, [fetchRestaurants]);
+
+  useEffect(() => {
+    fetchRestaurants();
+  }, [selectedCuisine, searchQuery, fetchRestaurants]);
+
+  const fetchCuisines = async () => {
+    try {
+      const response = await restaurantAPI.getCuisines();
+      setCuisines(response.data);
+    } catch (err) {
+      console.error('Error fetching cuisines:', err);
     }
   };
 
@@ -101,7 +101,19 @@ const Restaurants = () => {
                 className="restaurant-card"
               >
                 <div className="restaurant-image">
-                  <div className="restaurant-placeholder">🍽️</div>
+                  {restaurant.image ? (
+                    <img 
+                      src={restaurant.image} 
+                      alt={restaurant.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  ) : (
+                    <div className="restaurant-placeholder">🍽️</div>
+                  )}
                   {!restaurant.is_open && (
                     <div className="closed-badge">Closed</div>
                   )}

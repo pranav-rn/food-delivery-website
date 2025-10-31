@@ -35,7 +35,7 @@ const Navbar = () => {
                 </Link>
               )}
               {user?.userType === 'restaurant_owner' && (
-                <Link to="/restaurant-dashboard" className="navbar-link dashboard-link">
+                <Link to="/restaurant-owner-dashboard" className="navbar-link dashboard-link">
                   🍽️ Manage Restaurant
                 </Link>
               )}

@@ -89,9 +89,97 @@ router.get('/my-restaurant', authMiddleware, requireRole('restaurant_owner'), as
       return res.status(404).json({ error: 'No restaurant found for this owner' });
     }
 
-    res.json(restaurants[0]);
+    // Convert image BLOB to base64 if exists
+    const restaurant = restaurants[0];
+    if (restaurant.image) {
+      restaurant.image = `data:image/jpeg;base64,${restaurant.image.toString('base64')}`;
+    }
+
+    res.json(restaurant);
   } catch (error) {
     console.error('Get restaurant error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * Update restaurant profile with image
+ * PUT /api/restaurant-owner/my-restaurant
+ */
+router.put('/my-restaurant', authMiddleware, requireRole('restaurant_owner'), upload.single('image'), async (req, res) => {
+  try {
+    const connection = db.getConnectionByUserType(req.user.userType);
+    const { name, description, address, phoneNum, cuisine } = req.body;
+    
+    // Get restaurant_id for this owner
+    const [restaurants] = await connection.query(
+      'SELECT restaurant_id FROM Restaurant_Owners WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    if (restaurants.length === 0) {
+      return res.status(404).json({ error: 'No restaurant found' });
+    }
+
+    const restaurantId = restaurants[0].restaurant_id;
+
+    // Build update query dynamically based on provided fields
+    let updateFields = [];
+    let updateValues = [];
+
+    if (name) {
+      updateFields.push('name = ?');
+      updateValues.push(name);
+    }
+    if (description !== undefined) {
+      updateFields.push('description = ?');
+      updateValues.push(description);
+    }
+    if (address) {
+      updateFields.push('address = ?');
+      updateValues.push(address);
+    }
+    if (phoneNum) {
+      updateFields.push('phone_num = ?');
+      updateValues.push(phoneNum);
+    }
+    if (cuisine) {
+      updateFields.push('cuisine = ?');
+      updateValues.push(cuisine);
+    }
+    if (req.file) {
+      updateFields.push('image = ?');
+      updateValues.push(req.file.buffer);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    // Add restaurant_id to values array
+    updateValues.push(restaurantId);
+
+    // Execute update
+    await connection.query(
+      `UPDATE Restaurants SET ${updateFields.join(', ')} WHERE restaurant_id = ?`,
+      updateValues
+    );
+
+    // Fetch updated restaurant
+    const [updated] = await connection.query(
+      'SELECT * FROM Restaurants WHERE restaurant_id = ?',
+      [restaurantId]
+    );
+
+    // Convert image BLOB to base64 if exists
+    const restaurant = updated[0];
+    if (restaurant.image) {
+      restaurant.image = `data:image/jpeg;base64,${restaurant.image.toString('base64')}`;
+    }
+
+    res.json({ message: 'Restaurant updated successfully', restaurant });
+  } catch (error) {
+    console.error('Update restaurant error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

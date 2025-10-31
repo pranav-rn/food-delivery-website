@@ -54,7 +54,8 @@ CREATE TABLE Restaurants (
     phone_num VARCHAR(20),
     rating DECIMAL(2,1) DEFAULT 0.0,
     is_open BOOLEAN DEFAULT TRUE,
-    cuisine VARCHAR(100)
+    cuisine VARCHAR(100),
+    image LONGBLOB
 );
 
 -- Restaurant_Owners Table (links users to restaurants they own)
